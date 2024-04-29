@@ -1,0 +1,75 @@
+services:
+    laravel.test:
+        container_name: admin-api
+        build:
+            context: ./docker/8.2
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: 1000
+        # image: sail-8.3/app
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        ports:
+            - "${APP_PORT:-80}:80"
+            # - "${VITE_PORT:-5173}:${VITE_PORT:-5173}"
+        environment:
+            WWWUSER: 1000
+            LARAVEL_SAIL: 1
+            XDEBUG_MODE: "${SAIL_XDEBUG_MODE:-off}"
+            XDEBUG_CONFIG: "${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}"
+            IGNITION_LOCAL_SITES_PATH: "${PWD}"
+        volumes:
+            - ".:/var/www/html"
+        networks:
+            - junior
+        depends_on:
+            - pgsql
+            - redis
+    pgsql:
+        image: "postgres:15"
+        ports:
+            - "${FORWARD_DB_PORT:-5432}:5432"
+        environment:
+            PGPASSWORD: password
+            POSTGRES_DB: junior
+            POSTGRES_USER: junior
+            POSTGRES_PASSWORD: password
+        volumes:
+            - "junior-pgsql:/var/lib/postgresql/data"
+            - "./docker/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql"
+        networks:
+            - junior
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - "-q"
+                - "-d"
+                - "junior"
+                - "-U"
+                - "junior"
+            retries: 3
+            timeout: 5s
+    redis:
+        image: "redis:alpine"
+        ports:
+            - "${FORWARD_REDIS_PORT:-6379}:6379"
+        volumes:
+            - "junior-redis:/data"
+        networks:
+            - junior
+        healthcheck:
+            test:
+                - CMD
+                - redis-cli
+                - ping
+            retries: 3
+            timeout: 5s
+networks:
+    junior:
+        driver: bridge
+volumes:
+    junior-pgsql:
+        driver: local
+    junior-redis:
+        driver: local
